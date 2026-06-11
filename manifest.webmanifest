@@ -1,0 +1,15 @@
+{
+  "name": "لعبة توقعات كأس العالم 2026",
+  "short_name": "توقعات 2026",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#20d9bd",
+  "theme_color": "#f01886",
+  "icons": [
+    {
+      "src": "wc2026_logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
