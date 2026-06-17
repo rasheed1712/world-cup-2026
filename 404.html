@@ -1233,8 +1233,8 @@ function renderLeaderboard(){
 }
 function downloadCSV(){
   let rows=renderLeaderboard();
-  let csv="rank,player,group_points,knockout_points,match_points,correct_match_predictions,correct_card_predictions,total
-"+
+  let csv = "rank,player,group_points,knockout_points,match_points,correct_match_predictions,correct_card_predictions,total
+" +
     rows.map((r,i)=>`${i+1},"${r.player}",${r.groups},${r.knockout},${r.matches},${r.correctMatches},${r.correctCards},${r.total}`).join("
 ");
   let a=document.createElement('a');
