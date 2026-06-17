@@ -219,7 +219,7 @@
   </section>
 
   <section id="leader" class="card hide">
-    <h2>الترتيب والنقاط</h2>\n    <div class="note">تمت إضافة عمودين: عدد المباريات التي توقعها اللاعب بشكل صحيح، وعدد توقعات الكروت الصحيحة. توقع الكروت الصحيح يُحسب لكل فريق على حدة.</div>
+    <h2>الترتيب والنقاط</h2>
     <div class="note">الأسهم تقارن الترتيب الحالي بآخر ترتيب محفوظ: ▲ صعود، ▼ نزول، — ثبات. زر PDF يفتح نافذة الطباعة؛ اختر الحفظ بصيغة PDF.</div>
     <div class="note">ملاحظة: تم تفعيل حساب مباريات دور المجموعات أيضاً. توقع الفائز أو التعادل = 1 نقطة، والنتيجة الدقيقة = 3 نقاط، والكروت تُحسب لكل فريق.</div>
     <button onclick="renderLeaderboard()">تحديث الحساب</button>
@@ -1134,112 +1134,29 @@ function matchScore(m, p, a){
 
   return pts;
 }
-
-function matchStats(m, p, a){
-  let correctMatch = 0;
-  let correctCards = 0;
-
-  if(m.stage==="المجموعات"){
-    if(a.h90!=="" && a.a90!=="" && p.h90!=="" && p.a90!=="" &&
-       a.h90!=null && a.a90!=null && p.h90!=null && p.a90!=null &&
-       outcome(p.h90,p.a90)===outcome(a.h90,a.a90)) {
-      correctMatch = 1;
-    }
-  } else {
-    if(finalWinner(m,p,true) && finalWinner(m,a,false) &&
-       finalWinner(m,p,true)===finalWinner(m,a,false)) {
-      correctMatch = 1;
-    }
-  }
-
-  [["hy","hr"],["ay","ar"]].forEach(pair=>{
-    if(a[pair[0]]!=="" && a[pair[1]]!=="" && p[pair[0]]!=="" && p[pair[1]]!=="" &&
-       a[pair[0]]!=null && a[pair[1]]!=null && p[pair[0]]!=null && p[pair[1]]!=null &&
-       Number(a[pair[0]])===Number(p[pair[0]]) &&
-       Number(a[pair[1]])===Number(p[pair[1]])) {
-      correctCards++;
-    }
-  });
-
-  return {correctMatch, correctCards};
-}
-
-function calcPlayer(p){
-  let pr=state.predictions[p]||{groups:{},matches:{},knockout:{}};
-  let gs=groupScore(pr.groups||{}, state.actual.groups||{}, pr.knockout||{});
-  let ks=knockoutScore(pr.knockout||{}, state.actual.knockout||{});
-  let ms=0;
-  let correctMatches=0;
-  let correctCards=0;
-
-  state.matches.forEach(m=>{
-    const predMatch=(pr.matches||{})[m.id]||{};
-    const actualMatch=state.actual.matches[m.id]||{};
-    ms+=matchScore(m,predMatch,actualMatch);
-
-    const st=matchStats(m,predMatch,actualMatch);
-    correctMatches+=st.correctMatch;
-    correctCards+=st.correctCards;
-  });
-
-  return {
-    player:p,
-    groups:gs,
-    knockout:ks,
-    matches:ms,
-    correctMatches:correctMatches,
-    correctCards:correctCards,
-    total:gs+ks+ms
-  };
-}
+function calcPlayer(p){let pr=state.predictions[p]||{groups:{},matches:{},knockout:{}}; let gs=groupScore(pr.groups||{}, state.actual.groups||{}, pr.knockout||{}); let ks=knockoutScore(pr.knockout||{}, state.actual.knockout||{}); let ms=0; state.matches.forEach(m=>ms+=matchScore(m,(pr.matches||{})[m.id]||{},state.actual.matches[m.id]||{})); return {player:p,groups:gs,knockout:ks,matches:ms,total:gs+ks+ms};}
 function renderLeaderboard(){
   let rows=state.players.map(calcPlayer).sort((a,b)=>b.total-a.total);
-
-  let hasRankMemory = typeof state.previousLeaderboard !== "undefined";
-  let html = hasRankMemory
-    ? "<table><tr><th>المركز</th><th>الحركة</th><th>اللاعب</th><th>نقاط المجموعات</th><th>نقاط الأدوار الإقصائية</th><th>نقاط المباريات</th><th>مباريات توقعها صح</th><th>توقعات كروت صحيحة</th><th>المجموع</th></tr>"
-    : "<table><tr><th>المركز</th><th>اللاعب</th><th>نقاط المجموعات</th><th>نقاط الأدوار الإقصائية</th><th>نقاط المباريات</th><th>مباريات توقعها صح</th><th>توقعات كروت صحيحة</th><th>المجموع</th></tr>";
-
+  let html="<table><tr><th>المركز</th><th>الحركة</th><th>اللاعب</th><th>نقاط المجموعات</th><th>نقاط الأدوار الإقصائية</th><th>نقاط المباريات</th><th>المجموع</th></tr>";
   const currentPositions={};
-
   rows.forEach((r,i)=>{
     const current=i+1;
     currentPositions[r.player]=current;
-
-    let movement="";
-    if(hasRankMemory){
-      const previous=(state.previousLeaderboard||{})[r.player];
-      movement='<span class="rank-move move-same">— ثابت</span>';
-      if(previous!=null){
-        if(current<previous) movement=`<span class="rank-move move-up">▲ صعد ${previous-current}</span>`;
-        else if(current>previous) movement=`<span class="rank-move move-down">▼ نزل ${current-previous}</span>`;
-      }else{
-        movement='<span class="rank-move move-same">● جديد</span>';
-      }
-    }
-
-    html += hasRankMemory
-      ? `<tr><td>${current}</td><td>${movement}</td><td>${esc(r.player)}</td><td>${r.groups}</td><td>${r.knockout}</td><td>${r.matches}</td><td>${r.correctMatches}</td><td>${r.correctCards}</td><td class="score">${r.total}</td></tr>`
-      : `<tr><td>${current}</td><td>${esc(r.player)}</td><td>${r.groups}</td><td>${r.knockout}</td><td>${r.matches}</td><td>${r.correctMatches}</td><td>${r.correctCards}</td><td class="score">${r.total}</td></tr>`;
+    const previous=state.previousLeaderboard[r.player];
+    let movement='<span class="rank-move move-same">— ثابت</span>';
+    if(previous!=null){
+      if(current<previous){ movement=`<span class="rank-move move-up">▲ صعد ${previous-current}</span>`; }
+      else if(current>previous){ movement=`<span class="rank-move move-down">▼ نزل ${current-previous}</span>`; }
+    }else{ movement='<span class="rank-move move-same">● جديد</span>'; }
+    html+=`<tr><td>${current}</td><td>${movement}</td><td>${esc(r.player)}</td><td>${r.groups}</td><td>${r.knockout}</td><td>${r.matches}</td><td class="score">${r.total}</td></tr>`;
   });
-
   html+="</table>";
   leaderboard.innerHTML=html;
-
   state.previousLeaderboard=currentPositions;
   localStorage.setItem("wc2026_game_v2", JSON.stringify(state));
-
   return rows;
 }
-function downloadCSV(){
-  let rows=renderLeaderboard();
-  let csv = "rank,player,group_points,knockout_points,match_points,correct_match_predictions,correct_card_predictions,total\n" +
-    rows.map((r,i)=>`${i+1},"${r.player}",${r.groups},${r.knockout},${r.matches},${r.correctMatches},${r.correctCards},${r.total}`).join("\n");
-  let a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download="leaderboard.csv";
-  a.click();
-}
+function downloadCSV(){let rows=renderLeaderboard(); let csv="rank,player,group_points,knockout_points,match_points,total\n"+rows.map((r,i)=>`${i+1},"${r.player}",${r.groups},${r.knockout},${r.matches},${r.total}`).join("\n"); let a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download="leaderboard.csv"; a.click();}
 
 function printLeaderboardPDF(){
   renderLeaderboard();
