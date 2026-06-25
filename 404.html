@@ -112,6 +112,19 @@
       @page{size:A4 landscape;margin:10mm}
     }
 
+
+    .match-picker{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:12px}
+    .match-pick{background:#fff;border:2px solid #e8d7ef;color:#34213d;border-radius:16px;padding:12px;text-align:right;box-shadow:none}
+    .match-pick.active{border-color:#f01886;background:linear-gradient(135deg,#fff0f8,#f0ebff);color:#4a155f}
+    .match-pick .stage{font-size:12px;color:#607080;display:block;margin-bottom:4px}
+    .match-pick .date{font-size:12px;color:#0f766e;display:block;margin-top:5px}
+    .player-pred-card{border:1px solid #f0c5dd;border-radius:16px;padding:12px;margin:10px 0;background:#fffafd}
+    .player-pred-card h3{margin:0 0 9px;color:#7a2cff}
+    .score-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .score-line input{width:60px;display:inline-block}
+    .inline-check{display:flex;align-items:center;gap:5px;font-size:12px;color:#475569}
+    .inline-check input{width:auto}
+
 </style>
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#f01886">
@@ -193,13 +206,10 @@
   </section>
 
   <section id="matches" class="card hide">
-    <h2>توقع المباريات</h2>
-    <div class="row">
-      <div><label>اختر اللاعب</label><select id="matchPlayer" onchange="renderMatchPredictions()"></select></div>
-      <button onclick="saveMatchPredictions()">حفظ توقعات المباريات</button>
-    </div>
-    <p class="small">مباريات دور المجموعات تُحسب: توقع الفائز أو التعادل = 1 نقطة، والنتيجة الدقيقة = 3 نقاط. الأدوار الإقصائية: توقع الفائز النهائي بالمباراة = 1 نقطة. نقاط الأشواط الإضافية والجزاءات لا تُحسب إلا إذا قام اللاعب بتفعيل خيارها عند التوقع. الكروت: نقطتان لكل فريق إذا توقع الأصفر والأحمر لذلك الفريق بشكل صحيح.</p>
-    <div id="matchPredictions" class="wide"></div>
+    <h2>إدخال توقعات المباريات</h2>
+    <div class="note">اضغط على المباراة أولاً، ثم ستظهر أسماء جميع المشتركين لإدخال توقعاتهم في صفحة واحدة. يتم الحفظ عند الضغط على زر الحفظ أسفل التوقعات.</div>
+    <p class="small">المجموعات: توقع الفائز أو التعادل = 1 نقطة، والنتيجة الدقيقة = 3 نقاط. الأدوار الإقصائية: توقع الفائز النهائي = 1 نقطة، والنتيجة الدقيقة خلال 90 دقيقة = 3 نقاط. الكروت: نقطتان لكل فريق عند تطابق الأصفر والأحمر.</p>
+    <div id="matchPredictions"></div>
   </section>
 
   <section id="actual" class="card hide">
@@ -827,7 +837,7 @@ function teamSelectFromPool(value, cls, key, idx, pool, disabled=false){
 function addPlayer(){let n=document.getElementById('playerName').value.trim(); if(!n)return alert("اكتب اسم اللاعب"); if(state.players.includes(n))return alert("الاسم موجود"); state.players.push(n); state.predictions[n]=state.predictions[n]||{groups:{},matches:{},knockout:{}}; document.getElementById('playerName').value=""; save();}
 function removePlayer(n){ if(confirm("حذف اللاعب؟")){state.players=state.players.filter(x=>x!==n); delete state.predictions[n]; save();}}
 function renderPlayers(){ let html="<tr><th>اللاعب</th><th>إجراء</th></tr>"; state.players.forEach(p=>html+=`<tr><td>${esc(p)}</td><td><button class="danger" onclick="removePlayer('${esc(p)}')">حذف</button></td></tr>`); document.getElementById('playersTable').innerHTML=html; 
- ['groupPlayer','matchPlayer','koPlayer'].forEach(id=>{let el=document.getElementById(id); let old=el.value; el.innerHTML=state.players.map(p=>`<option>${esc(p)}</option>`).join(""); if(state.players.includes(old))el.value=old;});
+ ['groupPlayer','koPlayer'].forEach(id=>{let el=document.getElementById(id); let old=el.value; el.innerHTML=state.players.map(p=>`<option>${esc(p)}</option>`).join(""); if(state.players.includes(old))el.value=old;});
 }
 function renderTeamsEditor(){let html=""; Object.entries(state.groups).forEach(([g,teams])=>{html+=`<div class="card"><b>${esc(g)}</b><div class="grid">`; teams.forEach((t,i)=>html+=`<div><label>فريق ${i+1}</label><input value="${esc(t)}" onchange="state.groups['${esc(g)}'][${i}]=this.value; save()"></div>`); html+=`</div></div>`}); document.getElementById('teamsEditor').innerHTML=html;}
 
@@ -1019,17 +1029,63 @@ html+=`<tr>
 html+="</table>";
 target.innerHTML=html;
 }
-function renderMatchPredictions(){let p=matchPlayer.value; if(!p)return matchPredictions.innerHTML="أضف لاعبين أولاً."; matchRows(matchPredictions,"pred",p);}
-function saveMatchPredictions(){
-  let p=matchPlayer.value;if(!p)return;
-  state.predictions[p].matches=state.predictions[p].matches||{};
-  document.querySelectorAll('.predm').forEach(el=>{
-    let id=el.dataset.id;
-    state.predictions[p].matches[id]=state.predictions[p].matches[id]||{};
-    state.predictions[p].matches[id][el.dataset.f]=(el.type==="checkbox") ? el.checked : el.value;
-  });
-  save(); alert("تم الحفظ");
+let selectedPredictionMatchId = null;
+
+function predictionInput(player, matchId, field, value, type="number"){
+  const safe = value ?? "";
+  return `<input type="${type}" class="batchpred" data-player="${esc(player)}" data-id="${matchId}" data-f="${field}" value="${esc(safe)}">`;
 }
+function predictionCheck(player, matchId, field, checked){
+  return `<label class="inline-check"><input type="checkbox" class="batchpred" data-player="${esc(player)}" data-id="${matchId}" data-f="${field}" ${checked ? "checked" : ""}> تفعيل</label>`;
+}
+function renderMatchPredictionEditor(match){
+  if(!match) return "";
+  if(state.players.length===0) return '<div class="note">أضف أسماء المشتركين من صفحة الإعدادات أولاً.</div>';
+  const isKO = match.stage !== "المجموعات";
+  let html = `<div class="card"><h3>${esc(match.home)} ضد ${esc(match.away)}</h3><div class="small">${esc(match.stage)} ${match.date ? "— " + esc(match.date) : ""}</div><button onclick="saveBatchMatchPredictions('${match.id}')">حفظ توقعات هذه المباراة</button></div>`;
+  state.players.forEach(player=>{
+    state.predictions[player] = state.predictions[player] || {groups:{},matches:{},knockout:{}};
+    state.predictions[player].matches = state.predictions[player].matches || {};
+    const p = state.predictions[player].matches[match.id] || {};
+    const useET = p.useET===true || p.useET==="true";
+    const usePen = p.usePen===true || p.usePen==="true";
+    html += `<div class="player-pred-card"><h3>${esc(player)}</h3><div class="grid2">
+      <div><label>نتيجة 90 دقيقة</label><div class="score-line">${predictionInput(player,match.id,"h90",p.h90)} <b>${esc(match.home)}</b> — ${predictionInput(player,match.id,"a90",p.a90)} <b>${esc(match.away)}</b></div></div>
+      <div><label>كروت ${esc(match.home)}</label><div class="score-line">أصفر ${predictionInput(player,match.id,"hy",p.hy)} أحمر ${predictionInput(player,match.id,"hr",p.hr)}</div></div>
+      <div><label>كروت ${esc(match.away)}</label><div class="score-line">أصفر ${predictionInput(player,match.id,"ay",p.ay)} أحمر ${predictionInput(player,match.id,"ar",p.ar)}</div></div>`;
+    if(isKO){
+      html += `<div><label>الأشواط الإضافية</label><div class="score-line">${predictionCheck(player,match.id,"useET",useET)} ${predictionInput(player,match.id,"het",p.het)} <b>${esc(match.home)}</b> — ${predictionInput(player,match.id,"aet",p.aet)} <b>${esc(match.away)}</b></div></div>
+      <div><label>ركلات الجزاء</label><div class="score-line">${predictionCheck(player,match.id,"usePen",usePen)}<select class="batchpred" data-player="${esc(player)}" data-id="${match.id}" data-f="penWinner"><option value="">بدون</option><option value="${esc(match.home)}" ${p.penWinner===match.home ? "selected" : ""}>${esc(match.home)}</option><option value="${esc(match.away)}" ${p.penWinner===match.away ? "selected" : ""}>${esc(match.away)}</option></select></div></div>`;
+    }
+    html += `</div></div>`;
+  });
+  html += `<button onclick="saveBatchMatchPredictions('${match.id}')">حفظ توقعات هذه المباراة</button>`;
+  return html;
+}
+function selectPredictionMatch(id){ selectedPredictionMatchId=id; renderMatchPredictions(); }
+function renderMatchPredictions(){
+  if(state.matches.length===0){ matchPredictions.innerHTML='<div class="note">لا توجد مباريات مضافة. أضف المباريات من صفحة الإعدادات.</div>'; return; }
+  let html='<div class="match-picker">';
+  state.matches.forEach(m=>{
+    const active=m.id===selectedPredictionMatchId?"active":"";
+    html+=`<button class="match-pick ${active}" onclick="selectPredictionMatch('${m.id}')"><span class="stage">${esc(m.stage)}</span><strong>${esc(m.home)} × ${esc(m.away)}</strong><span class="date">${esc(m.date||"بدون تاريخ")}</span></button>`;
+  });
+  html+='</div>';
+  const selected=state.matches.find(m=>m.id===selectedPredictionMatchId);
+  html+=selected ? renderMatchPredictionEditor(selected) : '<div class="note">اختر مباراة من القائمة أعلاه لعرض أسماء المشتركين وإدخال توقعاتهم.</div>';
+  matchPredictions.innerHTML=html;
+}
+function saveBatchMatchPredictions(matchId){
+  document.querySelectorAll(`.batchpred[data-id="${matchId}"]`).forEach(el=>{
+    const player=el.dataset.player, field=el.dataset.f;
+    state.predictions[player]=state.predictions[player]||{groups:{},matches:{},knockout:{}};
+    state.predictions[player].matches=state.predictions[player].matches||{};
+    state.predictions[player].matches[matchId]=state.predictions[player].matches[matchId]||{};
+    state.predictions[player].matches[matchId][field]=el.type==="checkbox"?el.checked:el.value;
+  });
+  save(); selectedPredictionMatchId=matchId; renderMatchPredictions(); alert("تم حفظ توقعات جميع المشتركين لهذه المباراة");
+}
+function saveMatchPredictions(){ if(selectedPredictionMatchId) saveBatchMatchPredictions(selectedPredictionMatchId); }
 function renderActualMatches(){matchRows(actualMatches,"actual");}
 function saveActualMatches(){
   document.querySelectorAll('.actualm').forEach(el=>{
@@ -1295,7 +1351,7 @@ function restoreBackupFile(file){
 function exportData(){let data=JSON.stringify(state,null,2); navigator.clipboard?.writeText(data); alert("تم نسخ النسخة. ويمكنك أيضاً نسخها من النافذة التالية."); prompt("انسخ النسخة:", data);}
 function importData(){try{state=JSON.parse(importBox.value); save(); alert("تم الاستيراد");}catch(e){alert("الملف غير صحيح");}}
 function resetAll(){if(confirm("هل أنت متأكد من مسح كل البيانات؟")){localStorage.removeItem("wc2026_game_v2"); localStorage.removeItem("wc2026_game"); location.reload();}}
-function refreshAll(){renderPlayers();renderTeamsEditor();renderMatchesList();renderGroupPredictions();renderKnockoutPredictions();renderActualGroups();renderActualKnockout();renderMatchPredictions();renderActualMatches();renderLeaderboard();}
+function refreshAll(){if(selectedPredictionMatchId && !state.matches.some(m=>m.id===selectedPredictionMatchId)) selectedPredictionMatchId=null;renderPlayers();renderTeamsEditor();renderMatchesList();renderGroupPredictions();renderKnockoutPredictions();renderActualGroups();renderActualKnockout();renderMatchPredictions();renderActualMatches();renderLeaderboard();}
 refreshAll();
 </script>
 </body>
