@@ -125,6 +125,20 @@
     .inline-check{display:flex;align-items:center;gap:5px;font-size:12px;color:#475569}
     .inline-check input{width:auto}
 
+
+    .team-vs-layout{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:stretch;margin-top:8px}
+    .team-box{border:2px solid #e9d5ff;border-radius:18px;padding:12px;background:#fff}
+    .team-box.home{border-color:#7dd3fc;background:#f0f9ff}
+    .team-box.away{border-color:#f9a8d4;background:#fff1f7}
+    .team-box h4{margin:0 0 10px;text-align:center;font-size:16px;color:#312e81}
+    .team-box.away h4{color:#9d174d}
+    .team-box label{font-weight:bold;text-align:center}
+    .team-box input{max-width:110px;margin:0 auto;text-align:center;font-size:18px;font-weight:bold}
+    .team-box .field-group{display:flex;flex-direction:column;gap:6px;align-items:center;margin:10px 0}
+    .vs-divider{display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:bold;color:#7a2cff}
+    .ko-row{margin-top:12px;padding-top:10px;border-top:1px dashed #d8b4fe}
+    @media(max-width:700px){.team-vs-layout{grid-template-columns:1fr}.vs-divider{min-height:20px}.team-box{min-height:auto}}
+
 </style>
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#f01886">
@@ -1041,24 +1055,88 @@ function predictionCheck(player, matchId, field, checked){
 function renderMatchPredictionEditor(match){
   if(!match) return "";
   if(state.players.length===0) return '<div class="note">أضف أسماء المشتركين من صفحة الإعدادات أولاً.</div>';
+
   const isKO = match.stage !== "المجموعات";
-  let html = `<div class="card"><h3>${esc(match.home)} ضد ${esc(match.away)}</h3><div class="small">${esc(match.stage)} ${match.date ? "— " + esc(match.date) : ""}</div><button onclick="saveBatchMatchPredictions('${match.id}')">حفظ توقعات هذه المباراة</button></div>`;
+  let html = `<div class="card">
+    <h3>${esc(match.home)} ضد ${esc(match.away)}</h3>
+    <div class="small">${esc(match.stage)} ${match.date ? "— " + esc(match.date) : ""}</div>
+    <button onclick="saveBatchMatchPredictions('${match.id}')">حفظ توقعات هذه المباراة</button>
+  </div>`;
+
   state.players.forEach(player=>{
     state.predictions[player] = state.predictions[player] || {groups:{},matches:{},knockout:{}};
     state.predictions[player].matches = state.predictions[player].matches || {};
     const p = state.predictions[player].matches[match.id] || {};
     const useET = p.useET===true || p.useET==="true";
     const usePen = p.usePen===true || p.usePen==="true";
-    html += `<div class="player-pred-card"><h3>${esc(player)}</h3><div class="grid2">
-      <div><label>نتيجة 90 دقيقة</label><div class="score-line">${predictionInput(player,match.id,"h90",p.h90)} <b>${esc(match.home)}</b> — ${predictionInput(player,match.id,"a90",p.a90)} <b>${esc(match.away)}</b></div></div>
-      <div><label>كروت ${esc(match.home)}</label><div class="score-line">أصفر ${predictionInput(player,match.id,"hy",p.hy)} أحمر ${predictionInput(player,match.id,"hr",p.hr)}</div></div>
-      <div><label>كروت ${esc(match.away)}</label><div class="score-line">أصفر ${predictionInput(player,match.id,"ay",p.ay)} أحمر ${predictionInput(player,match.id,"ar",p.ar)}</div></div>`;
+
+    html += `<div class="player-pred-card">
+      <h3>${esc(player)}</h3>
+      <div class="team-vs-layout">
+        <div class="team-box home">
+          <h4>${esc(match.home)}</h4>
+          <div class="field-group">
+            <label>الأهداف</label>
+            ${predictionInput(player,match.id,"h90",p.h90)}
+          </div>
+          <div class="field-group">
+            <label>الكروت الصفراء</label>
+            ${predictionInput(player,match.id,"hy",p.hy)}
+          </div>
+          <div class="field-group">
+            <label>الكروت الحمراء</label>
+            ${predictionInput(player,match.id,"hr",p.hr)}
+          </div>
+        </div>
+
+        <div class="vs-divider">×</div>
+
+        <div class="team-box away">
+          <h4>${esc(match.away)}</h4>
+          <div class="field-group">
+            <label>الأهداف</label>
+            ${predictionInput(player,match.id,"a90",p.a90)}
+          </div>
+          <div class="field-group">
+            <label>الكروت الصفراء</label>
+            ${predictionInput(player,match.id,"ay",p.ay)}
+          </div>
+          <div class="field-group">
+            <label>الكروت الحمراء</label>
+            ${predictionInput(player,match.id,"ar",p.ar)}
+          </div>
+        </div>
+      </div>`;
+
     if(isKO){
-      html += `<div><label>الأشواط الإضافية</label><div class="score-line">${predictionCheck(player,match.id,"useET",useET)} ${predictionInput(player,match.id,"het",p.het)} <b>${esc(match.home)}</b> — ${predictionInput(player,match.id,"aet",p.aet)} <b>${esc(match.away)}</b></div></div>
-      <div><label>ركلات الجزاء</label><div class="score-line">${predictionCheck(player,match.id,"usePen",usePen)}<select class="batchpred" data-player="${esc(player)}" data-id="${match.id}" data-f="penWinner"><option value="">بدون</option><option value="${esc(match.home)}" ${p.penWinner===match.home ? "selected" : ""}>${esc(match.home)}</option><option value="${esc(match.away)}" ${p.penWinner===match.away ? "selected" : ""}>${esc(match.away)}</option></select></div></div>`;
+      html += `<div class="ko-row">
+        <div class="grid2">
+          <div>
+            <label>الأشواط الإضافية</label>
+            <div class="score-line">
+              ${predictionCheck(player,match.id,"useET",useET)}
+              ${predictionInput(player,match.id,"het",p.het)} <b>${esc(match.home)}</b>
+              — 
+              ${predictionInput(player,match.id,"aet",p.aet)} <b>${esc(match.away)}</b>
+            </div>
+          </div>
+          <div>
+            <label>ركلات الجزاء</label>
+            <div class="score-line">
+              ${predictionCheck(player,match.id,"usePen",usePen)}
+              <select class="batchpred" data-player="${esc(player)}" data-id="${match.id}" data-f="penWinner">
+                <option value="">بدون</option>
+                <option value="${esc(match.home)}" ${p.penWinner===match.home ? "selected" : ""}>${esc(match.home)}</option>
+                <option value="${esc(match.away)}" ${p.penWinner===match.away ? "selected" : ""}>${esc(match.away)}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>`;
     }
-    html += `</div></div>`;
+    html += `</div>`;
   });
+
   html += `<button onclick="saveBatchMatchPredictions('${match.id}')">حفظ توقعات هذه المباراة</button>`;
   return html;
 }
